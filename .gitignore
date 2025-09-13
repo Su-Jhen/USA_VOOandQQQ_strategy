@@ -1,0 +1,110 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.spyderproject
+.spyproject
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# AI/ML specific
+*.pkl
+*.joblib
+*.h5
+*.pb
+*.onnx
+*.pt
+*.pth
+*.model
+*.weights
+models/trained/*
+models/checkpoints/*
+!models/trained/.gitkeep
+!models/checkpoints/.gitkeep
+
+# Data files (keep structure but not data)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Experiment results
+experiments/results/*
+!experiments/results/.gitkeep
+.mlruns/
+mlruns/
+
+# Output files
+output/*
+!output/.gitkeep
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+data/temp/*
+!data/temp/.gitkeep
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Large data files
+*.csv
+*.json
+*.xlsx
+*.parquet
+*.feather
+*.hdf5
+*.zarr
+
+# Keep .gitkeep files
+!.gitkeep
