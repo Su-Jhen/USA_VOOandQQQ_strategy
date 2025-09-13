@@ -21,8 +21,10 @@ from strategies.ma_crossover import MAcrossoverStrategy, MAStrategy, create_ma_s
 
 warnings.filterwarnings('ignore')
 
-# 設置繪圖風格
-plt.style.use('seaborn-v0_8-darkgrid')
+# 設置繪圖風格（使用英文標籤）
+from utils.plot_config_english import setup_plotting, get_english_labels
+
+setup_plotting()
 sns.set_palette("husl")
 
 
@@ -257,21 +259,24 @@ class MAStrategyBacktest(BacktestEngine):
         voo_benchmark = self.run_buy_hold_benchmark('VOO')
         qqq_benchmark = self.run_buy_hold_benchmark('QQQ')
 
+        # 獲取英文標籤
+        labels = get_english_labels()
+
         # 創建子圖
         fig, axes = plt.subplots(3, 2, figsize=(15, 12))
-        fig.suptitle('MA交叉策略回測結果', fontsize=16, fontweight='bold')
+        fig.suptitle(labels['backtest_results'], fontsize=16, fontweight='bold')
 
         # 1. 權益曲線比較
         ax1 = axes[0, 0]
         ax1.plot(self.equity_curve.index, self.equity_curve['total_value'],
-                label='MA策略', linewidth=2, color='blue')
+                label=labels['ma_strategy'], linewidth=2, color='blue')
         ax1.plot(voo_benchmark.index, voo_benchmark['total_value'],
-                label='VOO Buy&Hold', linewidth=1.5, alpha=0.7, color='green')
+                label=labels['voo_buy_hold'], linewidth=1.5, alpha=0.7, color='green')
         ax1.plot(qqq_benchmark.index, qqq_benchmark['total_value'],
-                label='QQQ Buy&Hold', linewidth=1.5, alpha=0.7, color='red')
-        ax1.set_title('權益曲線比較')
-        ax1.set_xlabel('日期')
-        ax1.set_ylabel('資產價值 ($)')
+                label=labels['qqq_buy_hold'], linewidth=1.5, alpha=0.7, color='red')
+        ax1.set_title(labels['equity_curve'])
+        ax1.set_xlabel(labels['date'])
+        ax1.set_ylabel(labels['value'])
         ax1.legend()
         ax1.grid(True, alpha=0.3)
 
@@ -282,14 +287,14 @@ class MAStrategyBacktest(BacktestEngine):
         qqq_returns = (qqq_benchmark['total_value'] / qqq_benchmark['total_value'].iloc[0] - 1) * 100
 
         ax2.plot(self.equity_curve.index, strategy_returns,
-                label='MA策略', linewidth=2, color='blue')
+                label=labels['ma_strategy'], linewidth=2, color='blue')
         ax2.plot(voo_benchmark.index, voo_returns,
-                label='VOO Buy&Hold', linewidth=1.5, alpha=0.7, color='green')
+                label=labels['voo_buy_hold'], linewidth=1.5, alpha=0.7, color='green')
         ax2.plot(qqq_benchmark.index, qqq_returns,
-                label='QQQ Buy&Hold', linewidth=1.5, alpha=0.7, color='red')
-        ax2.set_title('累積報酬率')
-        ax2.set_xlabel('日期')
-        ax2.set_ylabel('報酬率 (%)')
+                label=labels['qqq_buy_hold'], linewidth=1.5, alpha=0.7, color='red')
+        ax2.set_title(labels['returns_comparison'])
+        ax2.set_xlabel(labels['date'])
+        ax2.set_ylabel(labels['returns_pct'])
         ax2.legend()
         ax2.grid(True, alpha=0.3)
 
@@ -297,14 +302,14 @@ class MAStrategyBacktest(BacktestEngine):
         ax3 = axes[1, 0]
         ax3.fill_between(self.equity_curve.index,
                         0, self.equity_curve['voo_weight'] * 100,
-                        label='VOO', alpha=0.6, color='green')
+                        label=labels['voo'], alpha=0.6, color='green')
         ax3.fill_between(self.equity_curve.index,
                         self.equity_curve['voo_weight'] * 100,
                         (self.equity_curve['voo_weight'] + self.equity_curve['qqq_weight']) * 100,
-                        label='QQQ', alpha=0.6, color='red')
-        ax3.set_title('資產配置變化')
-        ax3.set_xlabel('日期')
-        ax3.set_ylabel('配置比例 (%)')
+                        label=labels['qqq'], alpha=0.6, color='red')
+        ax3.set_title(labels['allocation_changes'])
+        ax3.set_xlabel(labels['date'])
+        ax3.set_ylabel(labels['allocation_pct'])
         ax3.set_ylim(0, 100)
         ax3.legend()
         ax3.grid(True, alpha=0.3)
@@ -316,28 +321,31 @@ class MAStrategyBacktest(BacktestEngine):
         drawdown = (self.equity_curve['total_value'] - cummax) / cummax * 100
         ax4.fill_between(drawdown.index, 0, drawdown, color='red', alpha=0.3)
         ax4.plot(drawdown.index, drawdown, color='red', linewidth=1)
-        ax4.set_title('策略回撤')
-        ax4.set_xlabel('日期')
-        ax4.set_ylabel('回撤 (%)')
+        ax4.set_title(labels['drawdown_analysis'])
+        ax4.set_xlabel(labels['date'])
+        ax4.set_ylabel(labels['drawdown_pct'])
         ax4.grid(True, alpha=0.3)
 
         # 5. 市場狀態分布
         ax5 = axes[2, 0]
         state_counts = self.equity_curve['market_state'].value_counts()
+        # 使用英文標籤避免字體問題
+        state_labels = {'BULL': 'Bull', 'BEAR': 'Bear', 'NEUTRAL': 'Neutral'}
         colors = {'BULL': 'green', 'BEAR': 'red', 'NEUTRAL': 'gray'}
-        ax5.pie(state_counts.values, labels=state_counts.index,
+        display_labels = [state_labels.get(x, x) for x in state_counts.index]
+        ax5.pie(state_counts.values, labels=display_labels,
                autopct='%1.1f%%', colors=[colors.get(x, 'blue') for x in state_counts.index])
-        ax5.set_title('市場狀態分布')
+        ax5.set_title(labels['market_states'])
 
         # 6. 月度報酬分布
         ax6 = axes[2, 1]
         monthly_returns = self.equity_curve['total_value'].resample('M').last().pct_change() * 100
         ax6.hist(monthly_returns.dropna(), bins=30, alpha=0.7, color='blue', edgecolor='black')
         ax6.axvline(monthly_returns.mean(), color='red', linestyle='--',
-                   label=f'平均: {monthly_returns.mean():.2f}%')
-        ax6.set_title('月度報酬分布')
-        ax6.set_xlabel('月報酬率 (%)')
-        ax6.set_ylabel('頻率')
+                   label=f'{labels["average"]}: {monthly_returns.mean():.2f}%')
+        ax6.set_title(labels['monthly_returns'])
+        ax6.set_xlabel('Monthly Returns (%)')
+        ax6.set_ylabel(labels['frequency'])
         ax6.legend()
         ax6.grid(True, alpha=0.3)
 
