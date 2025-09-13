@@ -1,0 +1,42 @@
+user@LAPTOP-RDJN8FS5:/mnt/c/Users/user$ curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd
+of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg]
+https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+sudo apt update
+sudo apt install gh
+[sudo] password for user:
+Sorry, try again.
+[sudo] password for user:
+c. Ϙ} d.*p':KP #  M}~  K @'߆ [  ,|  YD    Ŷ({ P/ y\  \ @
+  + GİTw    ,   a9N   t 1! fP  {FzXJ  3s  -G]A; qm F>          k  o(cQ+ܷ Q  $ f 7 SJ_ D    5 5^: Gf1  %K *  hU$  B< 8{   m     =     *"~@   M    n  t +ߪ  ^    E
+C$    [T  : {A 0
+ =    w٠n :7ᑞ2]A zi     ؞ C 1=g        ␦   E ١. ϳ5 73  u   LCa    3 6W   4J  z6m    thUP 2 T     JI  ,        T4`  1  '   T = C  H"+ Q , oKR    L D/! [ꩡ q8\Z 
+                                       A &GitHub CLI <opensource+cli@github.com> >
+
+
+       !,a   lz s#   uq`Yf٧        
+        #   uq`Y
+                  }D Q  "2] [BDF }yh ( pie { _ n ި! %       y    R       X   y[  T<) \     } x *,hð   q0M 8    `9       K   d   ! p
+          d x ␦ ) E$alhy4     ;t " =   x   Ge 2 dS @ܒ   b_$R Y    k J.     M  aZ  00 䢜P  s5   ( $ =g  =S     $           e  B tCb  G, ␦GG ՄW      d    Hd f  c \  f  
+ d؂҅   _ $^ 7h  \x % j  +    L _ׄp$J)  ? C  ? ? an]  "kl_ x.  4Ѻ / > V  cل   O A        D      
+                                                                                             A       nK qo )    l ~u96w c.   VF.       v :aL7  Jc x@@ T Z O ^ .6  u*z#| JF^ 
+ԧ    8   W%C! 9ix  ۆ   -{ M  -
+                              i  E␦ ؘ    _ ׆Icj}  <␦n  g  q L n  ]᠄< $1 d     P  ~]<h  (  唰Fc$  n92 T  ݹ/  D< e  ^    Z(h P      y O F a
+                 ~ dR[ v& C3˽ `  ␦ 8 w +   ¦f4   
+                                                   z n @ Z Y  Ճ k    M    Wj  B#  /  6 e        ȋ  _o=S J goL X { B A     D    X~ o   A ~   *Kr  `   k! 4 
+                                      \    I=    mk)qhcQ Um[ 99͢     8   Q aY  9 ג   #   O 䨣M wSFR3   ih  HW  *9    l;f?jF!C␦g:  ( Y l;  |VGC  V F+ "( )  QM 0_ &
+                                            lz s#   uq`Yf٧        
+        #   uq`Y
+    ->t (␦     D  "? p g֥    @] ;5 v > G ivWm  "~#  _aoon&z 4    ~Ɂ
+                                                  4.uxi j r  9 _ 7[{.z z  Ε  r>=  AI
+                                                                                     
+                                                                                     jFi   F  ׭ 
+Q  E <    lz  j / n45Ԗ1    4 T     `     { d  Sa;K  /  @ ա   #j gyClD g:D  @)  m  j J^d+fOT^ /m=
+                                                                                                   ,*   q|"~m#4D\r"  x >    hmNo wLua 8    e;޿tKX<s  j2B  L    }   C  ˉ        5 5~x  n"^4+1 records in
+4+1 records out
+2270 bytes (2.3 kB, 2.2 KiB) copied, 6.1284e-05 s, 37.0 MB/s
+E: Malformed entry 1 in list file /etc/apt/sources.list.d/github-cli.list (URI)
+E: The list of sources could not be read.
+E: Malformed entry 1 in list file /etc/apt/sources.list.d/github-cli.list (URI)
+E: The list of sources could not be read.
+user@LAPTOP-RDJN8FS5:/mnt/c/Users/user$
