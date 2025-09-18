@@ -9,16 +9,30 @@ import warnings
 def setup_plotting():
     """Set up English-only plotting configuration"""
 
-    # Basic font configuration
-    plt.rcParams['font.family'] = ['DejaVu Sans', 'sans-serif']
+    # Reset matplotlib to default settings
+    plt.rcdefaults()
+
+    # Basic font configuration with fallback fonts
+    plt.rcParams['font.family'] = 'sans-serif'
+    plt.rcParams['font.sans-serif'] = [
+        'Arial', 'DejaVu Sans', 'Liberation Sans',
+        'Bitstream Vera Sans', 'sans-serif'
+    ]
     plt.rcParams['font.size'] = 10
     plt.rcParams['axes.unicode_minus'] = False
     plt.rcParams['figure.dpi'] = 100
     plt.rcParams['savefig.dpi'] = 300
     plt.rcParams['savefig.bbox'] = 'tight'
 
-    # Style configuration
-    plt.style.use('seaborn-v0_8-darkgrid')
+    # Ensure text rendering
+    plt.rcParams['text.usetex'] = False
+    plt.rcParams['mathtext.default'] = 'regular'
+
+    # Style configuration - use a safer style
+    try:
+        plt.style.use('seaborn-v0_8-whitegrid')
+    except:
+        plt.style.use('default')
 
     # Colors
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',

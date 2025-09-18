@@ -17,8 +17,20 @@ class MAStrategy:
     qqq_weight_bull: float = 0.0   # 牛市QQQ權重（上漲期）
     qqq_weight_bear: float = 0.5   # 熊市QQQ權重（下跌期）
     rebalance_threshold: float = 0.05  # 再平衡閾值（5%）
+
+    # 進階優化參數
     use_slope_confirm: bool = False    # 是否使用斜率確認
     slope_period: int = 20             # 斜率計算週期
+
+    use_crossover_filter: bool = False # 是否使用交叉強度過濾
+    crossover_threshold: float = 0.01  # 交叉強度門檻（1%）
+
+    use_duration_confirm: bool = False # 是否使用持續時間確認
+    confirm_days: int = 3              # 信號確認天數
+
+    # 動態權重調整
+    use_dynamic_weight: bool = False   # 是否使用動態權重
+    max_qqq_weight: float = 0.5       # QQQ最大權重限制
 
 
 class MAcrossoverStrategy:
@@ -67,27 +79,95 @@ class MAcrossoverStrategy:
         df.loc[df['MA_fast'] > df['MA_slow'], 'Signal'] = 1   # 金叉 -> 牛市
         df.loc[df['MA_fast'] < df['MA_slow'], 'Signal'] = -1  # 死叉 -> 熊市
 
-        # 斜率確認（可選）
-        if self.params.use_slope_confirm:
-            # 只有當慢線也在下降時才確認熊市
-            df.loc[(df['Signal'] == -1) & (df['MA_slow_slope'] >= 0), 'Signal'] = 0
-            # 只有當慢線也在上升時才確認牛市
-            df.loc[(df['Signal'] == 1) & (df['MA_slow_slope'] <= 0), 'Signal'] = 0
+        # 應用進階優化過濾器
+        df = self._apply_advanced_filters(df)
 
-        # 儲存指標
-        self.indicators = df
         return df
 
-    def generate_signals(self, voo_data: pd.DataFrame, qqq_data: pd.DataFrame) -> pd.DataFrame:
+    def _apply_advanced_filters(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        生成交易信號
+        應用進階優化過濾器
 
         Args:
-            voo_data: VOO數據
-            qqq_data: QQQ數據
+            df: 包含基本信號的DataFrame
 
         Returns:
-            交易信號DataFrame
+            應用過濾後的DataFrame
+        """
+        # 1. 斜率確認過濾
+        if self.params.use_slope_confirm:
+            # 計算慢線斜率
+            df['MA_slow_slope'] = df['MA_slow'].diff(self.params.slope_period) / self.params.slope_period
+
+            # 雙重確認機制
+            original_signal = df['Signal'].copy()
+
+            # 下跌確認：MA_fast < MA_slow AND MA_slow斜率 < 0
+            bear_confirmed = (original_signal == -1) & (df['MA_slow_slope'] < 0)
+
+            # 上漲確認：MA_fast > MA_slow AND MA_slow斜率 > 0
+            bull_confirmed = (original_signal == 1) & (df['MA_slow_slope'] > 0)
+
+            # 重置信號，只保留確認的信號
+            df['Signal'] = 0
+            df.loc[bear_confirmed, 'Signal'] = -1
+            df.loc[bull_confirmed, 'Signal'] = 1
+
+        # 2. 交叉強度過濾
+        if self.params.use_crossover_filter:
+            # 計算交叉強度百分比
+            df['MA_diff_pct'] = abs((df['MA_fast'] - df['MA_slow']) / df['MA_slow']) * 100
+
+            # 只有當差距大於門檻時才認為是有效信號
+            valid_crossover = df['MA_diff_pct'] >= (self.params.crossover_threshold * 100)
+            df.loc[~valid_crossover, 'Signal'] = 0
+
+        # 3. 持續時間確認過濾
+        if self.params.use_duration_confirm:
+            df = self._apply_duration_filter(df)
+
+        return df
+
+    def _apply_duration_filter(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        應用持續時間確認過濾
+        信號必須持續N天才被確認
+
+        Args:
+            df: DataFrame with signals
+
+        Returns:
+            過濾後的DataFrame
+        """
+        if len(df) < self.params.confirm_days:
+            return df
+
+        confirmed_signals = df['Signal'].copy()
+
+        for i in range(self.params.confirm_days, len(df)):
+            current_signal = df['Signal'].iloc[i]
+
+            if current_signal != 0:  # 如果有信號
+                # 檢查前N天是否都是同樣的信號
+                lookback_signals = df['Signal'].iloc[i-self.params.confirm_days+1:i+1]
+
+                if not all(lookback_signals == current_signal):
+                    # 如果不是連續N天同樣信號，則取消此信號
+                    confirmed_signals.iloc[i] = 0
+
+        df['Signal'] = confirmed_signals
+        return df
+
+    def generate_signals(self, voo_data: pd.DataFrame, qqq_data: pd.DataFrame = None) -> pd.DataFrame:
+        """
+        生成交易信號（兼容版本）
+
+        Args:
+            voo_data: VOO價格數據
+            qqq_data: QQQ價格數據（可選，用於兼容性）
+
+        Returns:
+            包含信號的DataFrame
         """
         # 計算指標
         indicators = self.calculate_indicators(voo_data)
@@ -95,7 +175,8 @@ class MAcrossoverStrategy:
         # 創建信號DataFrame
         signals = pd.DataFrame(index=indicators.index)
         signals['VOO_Close'] = voo_data['Close']
-        signals['QQQ_Close'] = qqq_data['Close']
+        if qqq_data is not None:
+            signals['QQQ_Close'] = qqq_data['Close']
 
         # 市場狀態
         signals['Market_State'] = indicators['Signal'].map({
@@ -104,19 +185,28 @@ class MAcrossoverStrategy:
             0: 'NEUTRAL'
         })
 
-        # 目標權重
+        # 目標權重（使用動態權重）
+        if self.params.use_dynamic_weight:
+            qqq_weights = self._calculate_dynamic_qqq_weight(indicators)
+        else:
+            qqq_weights = pd.Series([self.params.qqq_weight_bear] * len(indicators), index=indicators.index)
+
         signals['QQQ_Target_Weight'] = indicators['Signal'].map({
             1: self.params.qqq_weight_bull,   # 牛市：0% QQQ
-            -1: self.params.qqq_weight_bear,  # 熊市：50% QQQ
             0: 0.25  # 中性：25% QQQ
         })
+
+        # 對熊市使用動態權重
+        bear_mask = indicators['Signal'] == -1
+        signals.loc[bear_mask, 'QQQ_Target_Weight'] = qqq_weights[bear_mask]
 
         signals['VOO_Target_Weight'] = 1 - signals['QQQ_Target_Weight']
 
         # 添加指標值（用於分析）
         signals['MA_fast'] = indicators['MA_fast']
         signals['MA_slow'] = indicators['MA_slow']
-        signals['MA_diff_pct'] = indicators['MA_diff_pct']
+        if 'MA_diff_pct' in indicators.columns:
+            signals['MA_diff_pct'] = indicators['MA_diff_pct']
 
         # 標記信號變化點
         signals['Signal_Change'] = signals['Market_State'] != signals['Market_State'].shift(1)
@@ -124,6 +214,40 @@ class MAcrossoverStrategy:
         # 儲存信號
         self.signals = signals
         return signals
+
+    def _calculate_dynamic_qqq_weight(self, df: pd.DataFrame) -> pd.Series:
+        """
+        計算動態QQQ權重
+
+        Args:
+            df: 包含指標的DataFrame
+
+        Returns:
+            動態QQQ權重Series
+        """
+        if not self.params.use_dynamic_weight:
+            return pd.Series([self.params.qqq_weight_bear] * len(df), index=df.index)
+
+        # 基礎權重
+        base_weight = self.params.qqq_weight_bear
+
+        # 根據下跌深度調整（如果有價格數據）
+        if 'Close' in df.columns:
+            # 計算從最高點的回撤
+            rolling_max = df['Close'].rolling(window=252, min_periods=1).max()  # 一年滾動最高
+            drawdown = (rolling_max - df['Close']) / rolling_max
+
+            # 根據回撤深度調整權重
+            # 回撤越深，QQQ權重越高（在熊市中買入更多便宜的QQQ）
+            adjustment = drawdown * 0.5  # 最多增加50%的額外權重
+            dynamic_weight = np.minimum(
+                base_weight + adjustment,
+                self.params.max_qqq_weight
+            )
+        else:
+            dynamic_weight = pd.Series([base_weight] * len(df), index=df.index)
+
+        return dynamic_weight
 
     def should_rebalance(self, current_weights: Dict[str, float],
                         target_weights: Dict[str, float]) -> bool:
@@ -213,7 +337,7 @@ MA交叉策略參數:
 
 
 def create_ma_strategy_variants() -> Dict[str, MAStrategy]:
-    """創建不同參數組合的MA策略"""
+    """創建不同參數組合的MA策略（基本變體）"""
     variants = {
         'conservative': MAStrategy(
             fast_period=50,
@@ -240,4 +364,92 @@ def create_ma_strategy_variants() -> Dict[str, MAStrategy]:
             use_slope_confirm=True
         )
     }
+    return variants
+
+
+def create_ma_parameter_matrix() -> Dict[str, MAStrategy]:
+    """
+    根據策略計畫創建完整的MA參數矩陣
+    實作策略計畫中的所有參數組合
+    """
+    variants = {}
+
+    # 策略計畫中的MA參數組合
+    ma_combinations = [
+        (10, 30, "超短期"),    # 敏感度高，交易頻繁
+        (20, 50, "短期"),      # 短線交易常用
+        (50, 100, "中期"),     # 平衡版本
+        (50, 200, "經典"),     # 黃金交叉/死亡交叉
+        (100, 200, "長期"),    # 長線趨勢
+    ]
+
+    # QQQ熊市權重選項
+    qqq_weights = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+
+    # 斜率確認選項
+    slope_confirm_options = [True, False]
+
+    for fast, slow, period_type in ma_combinations:
+        for qqq_weight in qqq_weights:
+            for use_slope in slope_confirm_options:
+                # 創建策略名稱
+                slope_suffix = "_slope" if use_slope else ""
+                name = f"{period_type}_{fast}_{slow}_QQQ{int(qqq_weight*100)}{slope_suffix}"
+
+                variants[name] = MAStrategy(
+                    fast_period=fast,
+                    slow_period=slow,
+                    qqq_weight_bear=qqq_weight,
+                    qqq_weight_bull=0.0,  # 牛市始終0% QQQ
+                    use_slope_confirm=use_slope,
+                    rebalance_threshold=0.05
+                )
+
+    return variants
+
+
+def create_comprehensive_parameter_scan() -> Dict[str, MAStrategy]:
+    """
+    創建更詳細的參數掃描
+    用於尋找最優參數組合
+    """
+    variants = {}
+
+    # 擴展的MA參數範圍
+    fast_periods = [5, 10, 15, 20, 30, 40, 50, 60]
+    slow_periods = [30, 50, 100, 150, 200, 250]
+
+    # QQQ權重範圍（每10%一個級距）
+    qqq_weights = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+
+    # 只測試有效的MA組合（fast < slow）
+    valid_combinations = []
+    for fast in fast_periods:
+        for slow in slow_periods:
+            if fast < slow and slow >= fast * 1.5:  # 確保slow至少是fast的1.5倍
+                valid_combinations.append((fast, slow))
+
+    # 為避免組合數過多，我們採用抽樣策略
+    # 重點測試一些關鍵組合
+    key_combinations = [
+        (10, 30), (10, 50), (15, 50), (20, 50), (20, 100),
+        (30, 100), (40, 100), (50, 100), (50, 150), (50, 200),
+        (60, 150), (60, 200)
+    ]
+
+    for fast, slow in key_combinations:
+        for qqq_weight in [0.3, 0.5, 0.7]:  # 只測試關鍵權重
+            for use_slope in [True, False]:
+                slope_suffix = "_slope" if use_slope else ""
+                name = f"scan_{fast}_{slow}_QQQ{int(qqq_weight*100)}{slope_suffix}"
+
+                variants[name] = MAStrategy(
+                    fast_period=fast,
+                    slow_period=slow,
+                    qqq_weight_bear=qqq_weight,
+                    qqq_weight_bull=0.0,
+                    use_slope_confirm=use_slope,
+                    rebalance_threshold=0.05
+                )
+
     return variants

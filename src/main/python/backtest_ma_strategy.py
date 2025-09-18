@@ -23,6 +23,7 @@ warnings.filterwarnings('ignore')
 
 # 設置繪圖風格（使用英文標籤）
 from utils.plot_config_english import setup_plotting, get_english_labels
+from utils.bilingual_reporter import bilingual_reporter
 
 setup_plotting()
 sns.set_palette("husl")
@@ -44,18 +45,25 @@ class MAStrategyBacktest(BacktestEngine):
         self.equity_curve = pd.DataFrame()
         self.benchmark_curve = pd.DataFrame()
 
-    def run_backtest(self) -> Dict:
+    def run_backtest(self, show_progress: bool = True) -> Dict:
         """執行回測"""
-        print("\n" + "="*60)
-        print("開始執行MA交叉策略回測")
-        print("="*60)
+        if show_progress:
+            print("\n" + "="*60)
+            print("開始執行MA交叉策略回測")
+            print("="*60)
 
         # 載入數據
-        print("\n📊 載入數據...")
+        if show_progress:
+            print("\n📊 載入數據...")
         self.load_data(['VOO', 'QQQ'])
 
+        if show_progress:
+            for symbol in ['VOO', 'QQQ']:
+                print(f"✅ 載入 {symbol} 數據: {len(self.data[symbol])} 筆")
+
         # 生成交易信號
-        print("\n📈 生成交易信號...")
+        if show_progress:
+            print("\n📈 生成交易信號...")
         signals = self.strategy.generate_signals(
             self.data['VOO'],
             self.data['QQQ']
@@ -63,14 +71,16 @@ class MAStrategyBacktest(BacktestEngine):
 
         # 獲取年度加碼日期
         contribution_dates = self.get_annual_contribution_dates()
-        print(f"\n💰 年度加碼日期: {len(contribution_dates)}個")
+        if show_progress:
+            print(f"\n💰 年度加碼日期: {len(contribution_dates)}個")
 
         # 初始化權益曲線記錄
         equity_records = []
         trades_log = []
 
         # 回測主循環
-        print("\n🔄 執行交易...")
+        if show_progress:
+            print("\n🔄 執行交易...")
         last_rebalance_date = None
         min_rebalance_days = 5  # 最少間隔5個交易日
 
@@ -89,7 +99,8 @@ class MAStrategyBacktest(BacktestEngine):
             # 處理年度加碼
             if date in contribution_dates:
                 self.portfolio.cash += self.annual_contribution
-                print(f"  💵 {date.date()}: 年度加碼 ${self.annual_contribution:,.0f}")
+                if show_progress:
+                    print(f"  💵 {date.date()}: 年度加碼 ${self.annual_contribution:,.0f}")
 
             # 獲取當前權重
             current_weights = self.portfolio.get_position_weights()
@@ -185,10 +196,11 @@ class MAStrategyBacktest(BacktestEngine):
         # 交易統計
         trades_df = pd.DataFrame(trades_log)
 
-        print(f"\n✅ 回測完成！")
-        print(f"   最終資產價值: ${self.portfolio.total_value:,.2f}")
-        print(f"   總報酬率: {self.portfolio.returns:.2f}%")
-        print(f"   總交易次數: {len(trades_df)}")
+        if show_progress:
+            print(f"\n✅ 回測完成！")
+            print(f"   最終資產價值: ${self.portfolio.total_value:,.2f}")
+            print(f"   總報酬率: {self.portfolio.returns:.2f}%")
+            print(f"   總交易次數: {len(trades_df)}")
 
         return {
             'metrics': self.results,
@@ -200,6 +212,10 @@ class MAStrategyBacktest(BacktestEngine):
     def run_buy_hold_benchmark(self, symbol: str = 'VOO') -> pd.DataFrame:
         """執行Buy & Hold基準策略"""
         print(f"\n執行 {symbol} Buy & Hold 基準策略...")
+
+        # 確保數據已載入
+        if not hasattr(self, 'data') or not self.data:
+            self.load_data(['VOO', 'QQQ'])
 
         # 初始化基準投資組合
         benchmark = Portfolio(self.initial_capital, self.commission)
@@ -462,29 +478,52 @@ def main():
     report = backtest.generate_detailed_report()
     print(report)
 
-    # 繪製圖表
+    # 生成時間戳記
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    chart_path = f"output/ma_strategy_results_{timestamp}.png"
-    backtest.plot_results(chart_path)
+
+    # 建立策略專用資料夾（提前建立以便儲存圖表）
+    strategy_output_dir = Path("output/strategies/ma_crossover")
+    strategy_output_dir.mkdir(parents=True, exist_ok=True)
+
+    # 繪製圖表到策略資料夾
+    chart_path = strategy_output_dir / f"ma_strategy_results_{timestamp}.png"
+    backtest.plot_results(str(chart_path))
 
     # 執行多策略比較
     print("\n2. 執行多策略參數比較")
     comparison_results = run_multiple_strategies()
 
-    # 儲存結果
+    # 確保output根目錄存在（相容性）
     output_dir = Path("output")
     output_dir.mkdir(exist_ok=True)
 
-    # 儲存詳細結果
-    results['equity_curve'].to_csv(f"output/equity_curve_{timestamp}.csv")
-    results['trades'].to_csv(f"output/trades_log_{timestamp}.csv")
-    comparison_results.to_csv(f"output/strategy_comparison_{timestamp}.csv")
+    # 儲存到策略專用資料夾
+    results['equity_curve'].to_csv(strategy_output_dir / f"equity_curve_{timestamp}.csv")
+    results['trades'].to_csv(strategy_output_dir / f"trades_log_{timestamp}.csv")
+    comparison_results.to_csv(strategy_output_dir / f"strategy_comparison_{timestamp}.csv")
 
-    # 儲存報告
-    with open(f"output/backtest_report_{timestamp}.txt", 'w', encoding='utf-8') as f:
+    # 儲存雙語版本到策略資料夾
+    results['strategy_params'] = standard_params.__dict__
+    bilingual_files = bilingual_reporter.save_bilingual_reports(results, str(strategy_output_dir), timestamp)
+
+    # 儲存雙語比較表
+    comparison_bilingual = bilingual_reporter.create_bilingual_csv_headers(
+        comparison_results,
+        {col: bilingual_reporter.bilingual_headers.get(col, col) for col in comparison_results.columns}
+    )
+    comparison_bilingual = bilingual_reporter.translate_categorical_values(comparison_bilingual)
+    comparison_bilingual.to_csv(strategy_output_dir / f"strategy_comparison_bilingual_{timestamp}.csv", encoding='utf-8-sig')
+
+    # 儲存報告到策略資料夾
+    with open(strategy_output_dir / f"backtest_report_{timestamp}.txt", 'w', encoding='utf-8') as f:
         f.write(report)
 
-    print(f"\n✅ 所有結果已儲存到 output/ 目錄")
+    print(f"\n✅ 所有結果已儲存到策略專用資料夾")
+    print(f"   📁 資料夾: {strategy_output_dir}")
+    print("   📊 英文圖表: ma_strategy_results_*.png")
+    print("   📄 原版CSV: equity_curve_*.csv, trades_log_*.csv, strategy_comparison_*.csv")
+    print("   🌍 雙語CSV: equity_curve_bilingual_*.csv, trades_log_bilingual_*.csv")
+    print("   📝 雙語報告: backtest_report_bilingual_*.txt")
     print("="*70)
 
 

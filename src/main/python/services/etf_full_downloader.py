@@ -30,6 +30,11 @@ class ETFFullDownloader:
             'name': 'SPDR S&P 500 ETF Trust',
             'inception_date': '1993-01-29',
             'description': '最早的 S&P 500 ETF'
+        },
+        'UPRO': {
+            'name': 'ProShares UltraPro S&P 500',
+            'inception_date': '2009-06-23',
+            'description': '3倍槓桿 S&P 500 ETF'
         }
     }
 
